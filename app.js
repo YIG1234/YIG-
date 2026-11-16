@@ -86,7 +86,7 @@ function resetChat() {
 }
 $("newChat").onclick = resetChat;
 $("clearChat")?.addEventListener("click", resetChat);
-
+}
 function renderFiles() {
   $("attachments").replaceChildren();
   files.forEach((file, index) => {
