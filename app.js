@@ -9,14 +9,16 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
 // Paste your Firebase Web App config here (Firebase Console > Project settings).
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_FIREBASE_APP_ID"
+  apiKey: "AIzaSyBDxEOCdvHbsi3VudC-cQsgTR4wgCQQRRo",
+  authDomain: "yig-ai.firebaseapp.com",
+  projectId: "yig-ai",
+  storageBucket: "yig-ai.firebasestorage.app",
+  messagingSenderId: "293000777951",
+  appId: "1:293000777951:web:4db4cf475c682db961996a",
+  measurementId: "G-V46TP11WRT"
 };
-
 const configured = !Object.values(firebaseConfig).some(v => String(v).includes("YOUR_"));
 let app, auth, db, currentUser = null, activeChatId = null;
 if (configured) {
