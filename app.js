@@ -38,51 +38,42 @@ function toast(message) {
 }
 function setUser(user) {
   currentUser = user;
-  $("cloudStatus").textContent = "● free ai ";
+  $("cloudStatus").textContent = "● ذكاء اصطناعي محلي مجاني";
   $("cloudStatus").style.color = "#5be5a8";
   $("signIn").hidden = !!user; $("signOut").hidden = !user;
-  $("userName").textContent = user?.displayName || "guest";
-  $("userEmail").textContent = user?.email || 'sign in to start ";
-  $("settingsUser").textContent = user ? `${user.displayName || ""} — ${user.email || ""}` : "sign in to manage your acount.";
+  $("userName").textContent = user?.displayName || "ضيف";
+  $("userEmail").textContent = user?.email || "سجّل الدخول للبدء";
+  $("settingsUser").textContent = user ? `${user.displayName || ""} — ${user.email || ""}` : "سجّل الدخول لإدارة حسابك.";
   $("userAvatar").innerHTML = user?.photoURL ? `<img src="${user.photoURL}" alt="">` : "Y";
 }
 async function doSignIn() {
-  if (!configured) return toast("لازم تضيف Firebase Config الأول في public/app.js.");
-  try { await signInWithPopup(auth, provider); }
+	@@ -52,11 +52,11 @@ async function doSignIn() {
   catch (err) {
     if (["auth/popup-blocked", "auth/popup-closed-by-user"].includes(err.code)) {
       await signInWithRedirect(auth, provider);
-    } else toast(err.message || "failed to log in .");
+    } else toast(err.message || "تعذر تسجيل الدخول.");
   }
 }
 $("signIn").addEventListener("click", doSignIn);
-$("signOut").addEventListener("click", async () => { if (auth) await signOut(auth); resetChat(); toast("signed out ."); });
+$("signOut").addEventListener("click", async () => { if (auth) await signOut(auth); resetChat(); toast("تم تسجيل الخروج."); });
 if (auth) {
   getRedirectResult(auth).catch(err => toast(err.message));
   onAuthStateChanged(auth, async user => {
-    setUser(user);
-    if (user) {
-      const tokenInfo = await user.getIdTokenResult(true);
-      const isAdmin = tokenInfo.claims.admin === true;
-      $("adminNav").hidden = !isAdmin;
+	@@ -68,7 +68,7 @@ if (auth) {
       await loadChats(); await loadFiles();
     }
     else {
-      $("adminNav").hidden = true; $("historyList").innerHTML = '<span class="muted">sign in to show your conservtions</span>'; $("fileLibrary").textContent = "sign in to show your files ."; }
+      $("adminNav").hidden = true; $("historyList").innerHTML = '<span class="muted">سجّل دخولك لعرض محادثاتك</span>'; $("fileLibrary").textContent = "سجّل الدخول لعرض ملفاتك."; }
   });
 } else setUser(null);
 
-function addMessage(role, text, opts = {}) {
-  $("welcome").classList.add("hidden");
-  const row = document.createElement("div"); row.className = `message ${role}`;
-  const avatar = document.createElement("div"); avatar.className = "msg-avatar"; avatar.textContent = role === "assistant" ? "Y" : "YOU";
-  const bubble = document.createElement("div"); bubble.className = "bubble"; bubble.textContent = text;
+	@@ -80,9 +80,9 @@ function addMessage(role, text, opts = {}) {
   row.append(avatar, bubble); $("messages").append(row);
   if (role === "assistant" && !opts.pending) {
     const actions = document.createElement("div"); actions.className = "bubble-actions";
-    const copy = document.createElement("button"); copy.textContent = "copy answer";
-    copy.onclick = () => navigator.clipboard.writeText(text).then(() => toast("answer copied."));
-    const speak = document.createElement("button"); speak.textContent = "🔊listen";
+    const copy = document.createElement("button"); copy.textContent = "نسخ الرد";
+    copy.onclick = () => navigator.clipboard.writeText(text).then(() => toast("تم نسخ الرد."));
+    const speak = document.createElement("button"); speak.textContent = "🔊 استمع";
     speak.onclick = () => speakText(text);
     actions.append(copy, speak); bubble.append(actions);
   }
