@@ -8,7 +8,8 @@ import {
   query, orderBy, serverTimestamp, limit
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
-// Paste your Firebase Web App config here (Firebase Console > Project settings).
+// Y.I.G AI V4 — Hybrid-ready client.
+// Firebase Web App config (public client config; protect with Firebase rules/restrictions).
 const firebaseConfig = {
   apiKey: "AIzaSyBDxEOCdvHbsi3VudC-cQsgTR4wgCQQRRo",
   authDomain: "yig-ai.firebaseapp.com",
@@ -30,6 +31,9 @@ if (configured) {
 const $ = id => document.getElementById(id);
 let files = [], messages = [], busy = false, chatCache = [];
 const provider = new GoogleAuthProvider();
+
+// Set to your own HTTPS backend. Keep private provider keys on the server only.
+const CLOUD_CHAT_ENDPOINT = "";
 provider.setCustomParameters({ prompt: "select_account" });
 
 function toast(message) {
@@ -113,6 +117,13 @@ $("fileInput").addEventListener("change", () => {
   }
   $("fileInput").value = ""; renderFiles();
 });
+$("messageInput").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    $("chatForm").requestSubmit();
+  }
+});
+
 $("messageInput").addEventListener("input", e => {
   e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 145) + "px";
 });
@@ -187,42 +198,89 @@ async function readLocalFiles(selected) {
   }
   return parts.join("\n");
 }
+async function getCloudReply(history, fileContext) {
+  if (!CLOUD_CHAT_ENDPOINT) throw new Error("الخدمة السحابية غير مهيأة بعد.");
+  const response = await fetch(CLOUD_CHAT_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: history, fileContext, webSearch: $("webToggle").checked })
+  });
+  if (!response.ok) throw new Error(`الخدمة السحابية ردّت بحالة ${response.status}`);
+  const data = await response.json();
+  if (!data || typeof data.reply !== "string" || !data.reply.trim()) {
+    throw new Error("استجابة الخدمة السحابية غير مفهومة.");
+  }
+  return data.reply.trim();
+}
+
+async function getLocalReply(history) {
+  const engine = await getLocalEngine();
+  const result = await engine.chat.completions.create({
+    messages: [
+      { role: "system", content: "أنت Y.I.G AI، مساعد عربي مفيد. أجب بوضوح وباختصار مناسب، واستخدم لغة المستخدم. إذا لم تعرف معلومة فقل ذلك بصراحة. أنت تعمل محلياً وقدراتك محدودة مقارنة بالنماذج السحابية الكبيرة." },
+      ...history
+    ],
+    temperature: 0.7,
+    max_tokens: 900
+  });
+  return result.choices?.[0]?.message?.content?.trim() || "لم أتمكن من إنشاء رد. جرّب مرة أخرى.";
+}
+
 async function sendMessage(text) {
   if (busy || (!text.trim() && !files.length)) return;
   busy = true; $("sendButton").disabled = true;
   const selected = [...files];
   const label = text.trim() + (selected.length ? `\n📎 ${selected.map(f => f.name).join("، ")}` : "");
-  addMessage("user", label); messages.push({ role: "user", content: text });
+  addMessage("user", label);
+  messages.push({ role: "user", content: text });
   files = []; renderFiles(); $("messageInput").value = ""; $("messageInput").style.height = "auto";
-  const waiting = addMessage("assistant", "جاري تشغيل الذكاء الاصطناعي المجاني على جهازك...", { pending: true });
+  const waiting = addMessage("assistant", "جاري الاتصال...", { pending: true });
   try {
-    if ($("webToggle").checked) toast("البحث المباشر على الإنترنت غير متاح في وضع التشغيل المجاني المحلي.");
-    const engine = await getLocalEngine();
     const fileContext = await readLocalFiles(selected);
-    const history = messages.slice(-12).map(m => ({ role: m.role, content: String(m.content || "").slice(0, 5000) }));
-    if (fileContext) history[history.length - 1].content += fileContext;
-    const result = await engine.chat.completions.create({
-      messages: [
-        { role: "system", content: "أنت Y.I.G AI، مساعد عربي مفيد. أجب بوضوح وباختصار مناسب، واستخدم لغة المستخدم. إذا لم تعرف معلومة فقل ذلك بصراحة. أنت تعمل محلياً وقدراتك محدودة مقارنة بالنماذج السحابية الكبيرة." },
-        ...history
-      ],
-      temperature: 0.7,
-      max_tokens: 900
-    });
-    const reply = result.choices?.[0]?.message?.content || "لم أتمكن من إنشاء رد. جرّب مرة أخرى.";
-    waiting.textContent = reply; messages.push({ role: "assistant", content: reply });
-    const actions = document.createElement("div"); actions.className = "bubble-actions";
-    const copy = document.createElement("button"); copy.textContent = "نسخ الرد"; copy.onclick = () => navigator.clipboard.writeText(reply).then(() => toast("تم نسخ الرد."));
-    const speak = document.createElement("button"); speak.textContent = "🔊 استمع"; speak.onclick = () => speakText(reply);
-    actions.append(copy, speak); waiting.append(actions);
-    if (currentUser) {
-      const id = await ensureChat(text || selected[0]?.name || "محادثة جديدة");
-      await saveChatMessage("user", label); await saveChatMessage("assistant", reply); await loadChats();
+    const history = messages.slice(-12).map(m => ({
+      role: m.role, content: String(m.content || "").slice(0, 5000)
+    }));
+    if (fileContext && history.length) history[history.length - 1].content += fileContext;
+
+    let reply = "";
+    let usedCloud = false;
+    if (CLOUD_CHAT_ENDPOINT) {
+      try {
+        waiting.textContent = "جاري تجربة الذكاء السحابي...";
+        reply = await getCloudReply(history, fileContext);
+        usedCloud = true;
+      } catch (cloudError) {
+        console.warn("Cloud unavailable; switching to local model:", cloudError);
+        waiting.textContent = "السحابة غير متاحة؛ جاري التحويل للذكاء المحلي...";
+      }
     }
+    if (!reply) {
+      if ($("webToggle").checked) toast("البحث المباشر يحتاج خدمة سحابية مهيأة؛ سيعمل الرد محلياً بدون بحث.");
+      reply = await getLocalReply(history);
+    }
+
+    waiting.textContent = reply;
+    messages.push({ role: "assistant", content: reply });
+    const actions = document.createElement("div"); actions.className = "bubble-actions";
+    const copy = document.createElement("button"); copy.textContent = "نسخ الرد";
+    copy.onclick = () => navigator.clipboard.writeText(reply).then(() => toast("تم نسخ الرد."));
+    const speak = document.createElement("button"); speak.textContent = "🔊 استمع";
+    speak.onclick = () => speakText(reply);
+    actions.append(copy, speak); waiting.append(actions);
+
+    if (currentUser) {
+      await ensureChat(text || selected[0]?.name || "محادثة جديدة");
+      await saveChatMessage("user", label);
+      await saveChatMessage("assistant", reply);
+      await loadChats();
+    }
+    $("cloudStatus").textContent = usedCloud ? "● السحابي متصل" : "● المحلي يعمل";
   } catch (err) {
-    waiting.textContent = `تعذر تشغيل النموذج المحلي: ${err.message}`;
+    waiting.textContent = `تعذر إنشاء الرد: ${err.message}`;
     toast(err.message);
-  } finally { busy = false; $("sendButton").disabled = false; $("messageInput").focus(); }
+  } finally {
+    busy = false; $("sendButton").disabled = false; $("messageInput").focus();
+  }
 }
 $("chatForm").addEventListener("submit", e => { e.preventDefault(); sendMessage($("messageInput").value); });
 document.querySelectorAll(".quick").forEach(btn => btn.onclick = () => sendMessage(btn.dataset.prompt));
